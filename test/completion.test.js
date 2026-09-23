@@ -1,0 +1,20 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const {CodexMonitor}=require('../codex-monitor');
+test('completion notifications ignore history and cancellation, retain each parallel completion once',t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'daylog-completion-'));
+ t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const now=new Date(),dir=path.join(root,String(now.getFullYear()),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0'));
+ fs.mkdirSync(dir,{recursive:true});
+ const file=path.join(dir,'session.jsonl');
+ const event=(type,at=Date.now(),turn_id='a')=>JSON.stringify({type:'event_msg',timestamp:new Date(at).toISOString(),payload:{type,turn_id}})+'\n';
+ fs.writeFileSync(file,event('task_complete',Date.now()-10000));
+ const monitor=new CodexMonitor(root);monitor.poll();assert.equal(monitor.completions.length,0);
+ fs.appendFileSync(file,event('task_started')+event('turn_aborted'));monitor.poll();assert.equal(monitor.completions.length,0);
+ fs.appendFileSync(file,event('task_started')+event('task_complete')+event('task_started',Date.now(),'b')+event('task_complete',Date.now(),'b'));
+ monitor.poll();assert.equal(monitor.completions.length,2);assert.notEqual(monitor.completions[0].id,monitor.completions[1].id);
+ monitor.poll();assert.equal(monitor.completions.length,2);
+ const newFile=path.join(dir,'new-session.jsonl');fs.writeFileSync(newFile,event('task_complete',Date.now()+1,'c'));
+ monitor.lastScan=0;monitor.poll();assert.equal(monitor.completions.length,3);
+});

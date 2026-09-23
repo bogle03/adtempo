@@ -1,0 +1,70 @@
+{
+  "name": "daylog",
+  "version": "0.3.7",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.js",
+    "start:server": "node server.js",
+    "start:quiet": "electron . --quiet",
+    "postinstall": "node node_modules/electron/install.js",
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "devDependencies": {
+    "electron": "^44.4.2",
+    "electron-builder": "^26.15.3"
+  },
+  "main": "desktop/main.js",
+  "productName": "Tempo",
+  "dependencies": {
+    "date-holidays": "^3.36.1"
+  },
+  "description": "Tempo local activity tracker for Windows",
+  "author": "Tempo",
+  "build": {
+    "appId": "com.daylog.desktop",
+    "productName": "Tempo",
+    "asar": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "*.js",
+      "desktop/**/*.js",
+      "public/**/*",
+      "assets/tempo-taskbar.ico",
+      "assets/daylog-mark.svg",
+      "windows/input-state.ps1",
+      "windows/startup.ps1",
+      "windows/startup-control.ps1",
+      "package.json",
+      "!electron-builder*",
+      "!data/**/*",
+      "!test/**/*",
+      "!release/**/*"
+    ],
+    "afterPack": "./scripts/after-pack.js",
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/tempo-taskbar.ico",
+      "artifactName": "Tempo-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Tempo",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": false,
+      "include": "scripts/installer.nsh"
+    }
+  }
+}

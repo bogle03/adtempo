@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "Tempo · OTT와 ChatGPT 시간 기록",
+  "version": "1.2.1",
+  "description": "웹 동영상 재생과 ChatGPT 입력·답변 생성 시간을 로컬 Tempo에 기록합니다.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:4318/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "exclude_matches": [
+        "http://127.0.0.1/*",
+        "http://localhost/*"
+      ],
+      "js": [
+        "media-services.js",
+        "youtube.js"
+      ],
+      "all_frames": true,
+      "match_about_blank": true
+    },
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://www.chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "chatgpt-state.js",
+        "chatgpt.js"
+      ]
+    }
+  ],
+  "options_page": "options.html",
+  "action": {
+    "default_title": "Tempo 연동 설정"
+  }
+}
