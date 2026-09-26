@@ -1,4 +1,8 @@
-# Daylog
+# Tempo
+
+버전별 추가 기능·개선 사항·오류 수정은 [변경 이력](CHANGELOG.md)에서 확인할 수 있습니다.
+
+푸시 전에는 버전과 변경 이력을 함께 갱신하고 `npm run release:check`로 확인합니다.
 
 Windows용 로컬 활동 시간 기록 데스크톱 앱. Electron 전용 창으로 실행되며 Chrome 설치가 필요하지 않습니다. 개발 환경은 Node.js 22.12 이상이며 최초 설치는 npm install을 사용합니다.
 

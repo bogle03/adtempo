@@ -99,6 +99,17 @@ test('mixed activity group records members independently and preserves history o
  const disk=JSON.parse(fs.readFileSync(path.join(temp,'state.json')));assert.equal(disk.activities.find(x=>x.id===a.id).rules.length,1);
  await post('event',{mode:'youtube',target:'netflix',source:'group-media',running:false});
 });
+test('renamed cards persist across every measurement mode without changing target names',async()=>{
+ for(const mode of ['manual','ai','youtube','process','mouse','group']){
+  const activity={name:'Rename '+mode,category:'work',mode,target:mode==='youtube'?'youtube':'codex',targets:[{name:'App',process:'missing-test-app'}],rules:[{id:'rename-rule',name:'Codex',mode:'ai',target:'codex'}]};
+  await post('activity',activity);const a=(await state()).activities.find(x=>x.name===activity.name);
+  await post('activity',{...a,name:'작업 '+mode});
+  const disk=JSON.parse(fs.readFileSync(path.join(temp,'state.json'),'utf8')).activities.find(x=>x.id===a.id);
+  assert.equal(disk.name,'작업 '+mode);assert.equal(disk.mode,mode);
+  if(mode==='group')assert.equal(disk.rules[0].name,'Codex');
+ }
+});
+
 test('tray shutdown closes active sessions and flushes them before exit',async()=>{
  const a=(await state()).activities.find(a=>a.mode==='manual');await post('control',{id:a.id,action:'start'});
  const exited=new Promise(resolve=>child.once('exit',resolve));

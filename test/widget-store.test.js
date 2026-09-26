@@ -53,8 +53,34 @@ test('personal widget stays transparent even when the separate sharing option is
  for(const sharing of [true,false]){
   let options,opacity;
   class FakeWindow extends EventEmitter{constructor(o){super();options=o;this.webContents=new EventEmitter();this.webContents.setWindowOpenHandler=()=>{};this.webContents.send=()=>{};}removeMenu(){}loadURL(){return Promise.resolve();}setAlwaysOnTop(){}setOpacity(v){opacity=v;}}
-  const context={BrowserWindow:FakeWindow,window:{getBounds:()=>({x:0,y:0})},widgetStore:{read:()=>({width:320,shareMode:sharing,shareColor:'#abc123'})},path,__dirname,BASE:'http://127.0.0.1:15319',writeStatus:()=>{},reportError:()=>{}};vm.createContext(context);
+  const context={icon:'tempo.ico',BrowserWindow:FakeWindow,window:{getBounds:()=>({x:0,y:0})},widgetStore:{read:()=>({width:320,shareMode:sharing,shareColor:'#abc123'})},path,__dirname,BASE:'http://127.0.0.1:15319',writeStatus:()=>{},reportError:()=>{}};vm.createContext(context);
   vm.runInContext('let compact=false,widgetWindow=null,compactOpacity=.4,quitting=false;'+source.slice(source.indexOf('function setCompact(next){'),source.indexOf('function resizeCompact(')),context);context.setCompact(true);
-  assert.equal(options.transparent,true);assert.equal(options.backgroundColor,'#00000000');assert.equal(opacity,.4);
+  assert.equal(options.skipTaskbar,false);assert.equal(options.icon,'tempo.ico');assert.equal(options.transparent,true);assert.equal(options.backgroundColor,'#00000000');assert.equal(opacity,1);
  }
+});
+
+test('card color option persists independently of custom timer color',t=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'tempo-widget-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));const store=createWidgetStore(dir);
+ store.appearance({color:'#123456'});store.appearance({cardColors:true});
+ assert.equal(createWidgetStore(dir).read().cardColors,true);assert.equal(store.read().color,'#123456');
+ store.appearance({cardColors:false});assert.equal(store.read().cardColors,false);assert.equal(store.read().color,'#123456');assert.throws(()=>store.appearance({cardColors:'true'}));
+});
+
+test('login startup opens widget with dashboard hidden; normal startup opens dashboard',async()=>{
+ const vm=require('node:vm'),source=fs.readFileSync(path.join(__dirname,'../desktop/main.js'),'utf8');
+ for(const showRequested of [true,false]){
+  const calls=[],context={log:()=>{},showRequested,showWindow:async show=>calls.push(['window',show]),setCompact:v=>calls.push(['widget',v])};vm.createContext(context);vm.runInContext(source.slice(source.indexOf('async function showInitialWindow(){'),source.indexOf('async function quitDaylog(){')),context);await context.showInitialWindow();
+  assert.deepEqual(calls,showRequested?[['window',undefined]]:[['window',false],['widget',true]]);
+ }
+});
+
+test('sharing backgrounds persist and reject transparent or arbitrary colors',t=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'tempo-share-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));const store=createWidgetStore(dir);
+ store.shareBackground('#ffffff');assert.equal(createWidgetStore(dir).read().shareBackground,'#ffffff');store.shareBackground('#000000');assert.equal(store.read().shareBackground,'#000000');assert.throws(()=>store.shareBackground('transparent'));assert.throws(()=>store.shareBackground('#123456'));
+});
+test('share window is opaque and uses an independent capture title',async()=>{
+ const vm=require('node:vm'),{EventEmitter}=require('node:events'),source=fs.readFileSync(path.join(__dirname,'../desktop/main.js'),'utf8');
+ for(const background of ['#000000','#ffffff']){let options,url;
+ class FakeWindow extends EventEmitter{constructor(o){super();options=o;this.webContents=new EventEmitter();this.webContents.setWindowOpenHandler=()=>{};}removeMenu(){}loadURL(value){url=value;return Promise.resolve();}}
+ const context={BrowserWindow:FakeWindow,ensureServer:async()=>{},widgetStore:{read:()=>({shareBackground:background})},icon:'tempo.ico',path,__dirname,BASE:'http://127.0.0.1:4318'};vm.createContext(context);vm.runInContext('let shareWindow=null;'+source.slice(source.indexOf('async function openShareWindow(){'),source.indexOf('function readBounds(){')),context);await context.openShareWindow();assert.equal(options.transparent,false);assert.equal(options.backgroundColor,background);assert.equal(options.title,'Tempo 공유용 위젯');assert.equal(options.webPreferences.backgroundThrottling,false);assert.ok(url.endsWith('?widget=1&share=1'));}
 });

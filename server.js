@@ -123,7 +123,7 @@ const server=http.createServer(async(req,res)=>{try{
  const fontFiles=['HCLBoardmarkerL-Light.ttf','HCLBoardmarkerM-Medium.ttf','HCLBoardmarkerB-Bold.ttf'];
  if(fontFiles.some(name=>url.pathname==='/fonts/'+name)){const file=path.join(DATA,'fonts',url.pathname.slice(7));if(!fs.existsSync(file))return send(res,404,{error:'Font not installed'});res.writeHead(200,{'Content-Type':'font/ttf','Cache-Control':'private, max-age=86400'});return res.end(fs.readFileSync(file));}
  if(url.pathname==='/assets/daylog-mark.svg'){res.writeHead(200,{'Content-Type':'image/svg+xml','Cache-Control':'no-cache'});return res.end(fs.readFileSync(path.join(ROOT,'assets','daylog-mark.svg')));}
- const files={'/page-colors.js':'page-colors.js','/decoration-geometry.js':'decoration-geometry.js','/calendar-repeat.js':'calendar-repeat.js','/decorations.js':'decorations.js','/decorations.css':'decorations.css','/':'index.html','/app.js':'app.js','/record-groups.js':'record-groups.js','/style.css':'style.css'};
+ const files={'/widget-hover.js':'widget-hover.js','/activity-ui.js':'activity-ui.js','/page-colors.js':'page-colors.js','/decoration-geometry.js':'decoration-geometry.js','/calendar-repeat.js':'calendar-repeat.js','/decorations.js':'decorations.js','/decorations.css':'decorations.css','/':'index.html','/app.js':'app.js','/record-groups.js':'record-groups.js','/style.css':'style.css'};
  if(files[url.pathname]){const f=files[url.pathname];res.writeHead(200,{'Content-Type':f.endsWith('.css')?'text/css':f.endsWith('.js')?'text/javascript':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(fs.readFileSync(path.join(ROOT,'public',f)));}
  send(res,404,{error:'Not found'});
  }catch(e){send(res,400,{error:e.message});}});

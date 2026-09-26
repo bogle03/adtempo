@@ -1,6 +1,6 @@
 {
   "name": "daylog",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "private": true,
   "scripts": {
     "start": "electron .",
@@ -8,7 +8,8 @@
     "start:server": "node server.js",
     "start:quiet": "electron . --quiet",
     "postinstall": "node node_modules/electron/install.js",
-    "dist": "electron-builder --win nsis --x64"
+    "dist": "electron-builder --win nsis --x64",
+    "release:check": "node scripts/check-release.js"
   },
   "engines": {
     "node": ">=22.12.0"

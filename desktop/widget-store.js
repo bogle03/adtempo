@@ -12,9 +12,10 @@ function createWidgetStore(dir){
   if(!width||!height||width>8192||height>8192)throw Error('이미지 크기는 8192px 이하여야 합니다.');
   const target=path.join(dir,({image:'widget.',idleImage:'widget-idle.',gameImage:'widget-game.',ottImage:'widget-ott.'}[slot])+type);fs.writeFileSync(target+'.tmp',b);fs.renameSync(target+'.tmp',target);write({...read(),[slot]:type});return image(slot);
  }
- function resize(width){if(!Number.isFinite(width)||width<240||width>520)throw Error('Invalid widget width');return write({...read(),width:Math.round(width)});}
- function appearance(value){if(!value||!/^#[0-9a-f]{6}$/i.test(value.color))throw Error('Invalid widget color');return write({...read(),color:value.color});}
+ function resize(width){if(!Number.isFinite(width)||width<160||width>520)throw Error('Invalid widget width');return write({...read(),width:Math.round(width)});}
+ function appearance(value){if(!value||(!Object.hasOwn(value,'color')&&!Object.hasOwn(value,'cardColors')))throw Error('Invalid widget appearance');const update={};if(Object.hasOwn(value,'color')){if(!/^#[0-9a-f]{6}$/i.test(value.color))throw Error('Invalid widget color');update.color=value.color;}if(Object.hasOwn(value,'cardColors')){if(typeof value.cardColors!=='boolean')throw Error('Invalid card colors');update.cardColors=value.cardColors;}return write({...read(),...update});}
  function idleDelay(seconds){if(!Number.isFinite(seconds)||seconds<0||seconds>3600)throw Error('대기 시간은 0~3600초로 설정해주세요.');return write({...read(),idleSeconds:Math.round(seconds)});}
- return {read,image,importImage,resize,appearance,idleDelay};
+ function shareBackground(color){if(!['#000000','#ffffff'].includes(color))throw Error('공유 배경은 검정 또는 흰색을 선택해주세요.');return write({...read(),shareBackground:color});}
+ return {read,image,importImage,resize,appearance,idleDelay,shareBackground};
 }
 module.exports={createWidgetStore};

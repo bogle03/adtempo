@@ -11,8 +11,6 @@ const startup=require('../startup-manager').createStartupManager();
 const log=message=>fs.appendFileSync(path.join(DATA,'desktop.log'),new Date().toISOString()+' '+message+'\n');
 let window=null,tray=null,server=null,watchdog=null,quitting=false,stopping=false,starting=null;
 let compact=false;
-let compactOpacity=1;
-try{const saved=JSON.parse(fs.readFileSync(path.join(DATA,'compact-settings.json'),'utf8'));if(Number.isFinite(saved.opacity))compactOpacity=Math.max(.35,Math.min(1,saved.opacity));}catch{}
 
 let showRequested=!process.argv.includes('--quiet');
 const icon=path.join(ROOT,'assets','tempo-taskbar.ico');
@@ -40,25 +38,28 @@ async function ensureServer(){
  })();try{await starting;}finally{starting=null;}
 }
 const widgetStore=require('./widget-store').createWidgetStore(DATA);
-let widgetWindow=null;
-function broadcastWidget(data){for(const target of [window,widgetWindow])if(target&&!target.isDestroyed())target.webContents.send('daylog:widget-update',data);}
-function validSender(event){return [window,widgetWindow].some(w=>w&&!w.isDestroyed()&&event.sender===w.webContents&&event.senderFrame===w.webContents.mainFrame)&&new URL(event.senderFrame.url).origin===BASE;}
+let widgetWindow=null,shareWindow=null;
+const restoreDashboard=require('./restore-dashboard').createDashboardRestorer({getWindow:()=>window,createWindow:()=>showWindow(false),getWidget:()=>widgetWindow,screen,url:BASE,onRestored:()=>{compact=false;},onFailed:()=>{compact=true;},log});
+function broadcastWidget(data){for(const target of [window,widgetWindow,shareWindow])if(target&&!target.isDestroyed())target.webContents.send('daylog:widget-update',data);}
+function validSender(event){return [window,widgetWindow,shareWindow].some(w=>w&&!w.isDestroyed()&&event.sender===w.webContents&&event.senderFrame===w.webContents.mainFrame)&&new URL(event.senderFrame.url).origin===BASE;}
 function setCompact(next){
- compact=next;
  if(next){
+  compact=true;
   if(!widgetWindow||widgetWindow.isDestroyed()){
    const b=window.getBounds(),config=widgetStore.read(),width=config.width||320;
-   widgetWindow=new BrowserWindow({x:b.x,y:b.y,width,height:440,frame:false,transparent:true,backgroundColor:'#00000000',hasShadow:false,resizable:false,show:false,skipTaskbar:true,alwaysOnTop:true,webPreferences:{preload:path.join(__dirname,'preload.js'),nodeIntegration:false,contextIsolation:true,sandbox:true}});
+   widgetWindow=new BrowserWindow({x:b.x,y:b.y,width,height:440,frame:false,transparent:true,backgroundColor:'#00000000',hasShadow:false,resizable:false,show:false,skipTaskbar:false,title:'Tempo 위젯',icon,alwaysOnTop:true,webPreferences:{preload:path.join(__dirname,'preload.js'),nodeIntegration:false,contextIsolation:true,sandbox:true}});
    widgetWindow.removeMenu();widgetWindow.webContents.setWindowOpenHandler(()=>({action:'deny'}));
    widgetWindow.webContents.on('will-navigate',(event,url)=>{if(new URL(url).origin!==BASE)event.preventDefault();});
-   widgetWindow.on('close',event=>{if(!quitting){event.preventDefault();setCompact(false);}});
+   widgetWindow.on('close',event=>{if(!quitting){event.preventDefault();Promise.resolve().then(()=>setCompact(false)).catch(reportError);}});
    widgetWindow.on('closed',()=>{widgetWindow=null;});
    widgetWindow.once('ready-to-show',()=>{if(compact){widgetWindow.show();window.hide();}});
-   widgetWindow.webContents.on('did-finish-load',()=>{widgetWindow.webContents.send('daylog:opacity',compactOpacity);widgetWindow.webContents.send('daylog:compact',true);});
+   widgetWindow.webContents.on('did-finish-load',()=>{widgetWindow.webContents.send('daylog:compact',true);});
    widgetWindow.loadURL(BASE+'/?widget=1').catch(reportError);
   }else{widgetWindow.show();window.hide();widgetWindow.webContents.send('daylog:compact',true);}
-  widgetWindow.setAlwaysOnTop(true,'screen-saver');widgetWindow.setOpacity(compactOpacity);
- }else{if(widgetWindow&&!widgetWindow.isDestroyed())widgetWindow.hide();window.show();window.focus();}
+  widgetWindow.setAlwaysOnTop(true,'screen-saver');widgetWindow.setOpacity(1);
+ }else{
+  return restoreDashboard().then(result=>{writeStatus();return result;});
+ }
  writeStatus();return {compact};
 }
 function resizeCompact(contentHeight){
@@ -68,10 +69,20 @@ function resizeCompact(contentHeight){
  const x=Math.max(area.x,Math.min(current.x,area.x+area.width-width)),y=Math.max(area.y,Math.min(current.y,area.y+area.height-height));
  if(current.width!==width||current.height!==height||current.x!==x||current.y!==y)widgetWindow.setBounds({x,y,width,height});
 }
+async function openShareWindow(){
+ await ensureServer();
+ if(shareWindow&&!shareWindow.isDestroyed()){if(shareWindow.isMinimized())shareWindow.restore();shareWindow.show();shareWindow.focus();return;}
+ const config=widgetStore.read(),background=config.shareBackground==='#ffffff'?'#ffffff':'#000000';
+ const target=new BrowserWindow({width:config.width||320,height:440,useContentSize:true,frame:true,transparent:false,backgroundColor:background,show:false,resizable:false,skipTaskbar:false,title:'Tempo 공유용 위젯',icon,webPreferences:{preload:path.join(__dirname,'preload.js'),nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false}});shareWindow=target;
+ target.removeMenu();target.webContents.setWindowOpenHandler(()=>({action:'deny'}));target.webContents.on('will-navigate',(e,url)=>{if(new URL(url).origin!==BASE)e.preventDefault();});
+ target.on('page-title-updated',e=>{e.preventDefault();target.setTitle('Tempo 공유용 위젯');});
+ target.on('closed',()=>{if(shareWindow===target)shareWindow=null;});target.once('ready-to-show',()=>target.show());
+ await target.loadURL(BASE+'/?widget=1&share=1');
+}
 function readBounds(){try{const b=JSON.parse(fs.readFileSync(path.join(DATA,'window.json'),'utf8'));return {width:Math.max(MAIN_MIN_WIDTH,Math.min(1800,b.width||1280)),height:Math.max(650,Math.min(1400,b.height||900))};}catch{return {width:1280,height:900};}}
-async function showWindow(){
+async function showWindow(showMain=true){
  await ensureServer();if(stopping)return;
- if(window&&!window.isDestroyed()){if(compact)setCompact(false);if(window.isMinimized())window.restore();window.show();window.focus();return;}
+ if(window&&!window.isDestroyed()){if(showMain)return setCompact(false);return;}
  window=new BrowserWindow({...readBounds(),minWidth:MAIN_MIN_WIDTH,minHeight:600,title:'Tempo',icon,backgroundColor:'#f6f7fb',show:false,minimizable:true,autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.js'),nodeIntegration:false,contextIsolation:true,sandbox:true}});
  window.setAppDetails({appId:'com.daylog.desktop',appIconPath:icon,appIconIndex:0,relaunchCommand:app.isPackaged?'"'+process.execPath+'"':'"'+process.execPath+'" "'+ROOT+'"',relaunchDisplayName:'Tempo'});
  window.removeMenu();
@@ -83,15 +94,15 @@ async function showWindow(){
  window.webContents.on('will-navigate',(event,url)=>{if(new URL(url).origin!==BASE)event.preventDefault();});
  window.on('close',event=>{if(!quitting){event.preventDefault();fs.writeFileSync(path.join(DATA,'window.json'),JSON.stringify(window.getNormalBounds()));window.hide();writeStatus();}});
  window.on('closed',()=>{window=null;});
- window.once('ready-to-show',()=>{if(window&&!stopping){window.show();window.focus();writeStatus();}});
+ window.once('ready-to-show',()=>{if(window&&!stopping&&showMain){window.show();window.focus();writeStatus();}});
  window.webContents.on('did-finish-load',()=>{window.webContents.send('daylog:compact',false);log('Tempo window loaded');writeStatus();});
  await window.loadURL(BASE);
 }
-function writeStatus(){fs.writeFileSync(path.join(DATA,'desktop-status.json'),JSON.stringify({pid:process.pid,ready:app.isReady(),tray:!!tray,window:!!window,visible:!!window&&!window.isDestroyed()&&window.isVisible(),minimized:!!window&&!window.isDestroyed()&&window.isMinimized(),url:window&&!window.isDestroyed()?window.webContents.getURL():null,updatedAt:Date.now()}));}
+function writeStatus(){fs.writeFileSync(path.join(DATA,'desktop-status.json'),JSON.stringify({pid:process.pid,ready:app.isReady(),tray:!!tray,compact,widgetVisible:!!widgetWindow&&!widgetWindow.isDestroyed()&&widgetWindow.isVisible(),window:!!window,visible:!!window&&!window.isDestroyed()&&window.isVisible(),minimized:!!window&&!window.isDestroyed()&&window.isMinimized(),url:window&&!window.isDestroyed()?window.webContents.getURL():null,updatedAt:Date.now()}));}
 async function trayMenu(){
  let enabled=false,available=true;try{enabled=(await startup.status()).autoStart;}catch{available=false;}
  return Menu.buildFromTemplate([
-  {label:'Tempo 열기',click:()=>showWindow().catch(reportError)},{type:'separator'},
+  {label:'Tempo 열기',click:()=>showWindow().catch(reportError)},{label:'공유용 위젯 열기',click:()=>openShareWindow().catch(reportError)},{type:'separator'},
   {label:'Windows 로그인 시 자동 실행',type:'checkbox',checked:enabled,enabled:available,click:async item=>{try{await startup.set(item.checked);}catch(error){reportError(error);}}},
   {type:'separator'},{label:'Tempo 종료 (기록 중지)',click:()=>quitDaylog()}
  ]);
@@ -104,7 +115,10 @@ async function startDesktop(){
  });
  ipcMain.handle('daylog:widget',async(event,action,value)=>{
   if(!validSender(event))throw Error('Invalid window request');
-  if(action==='get')return {...widgetStore.read(),opacity:compactOpacity,src:widgetStore.image(),idleSrc:widgetStore.image('idleImage'),gameSrc:widgetStore.image('gameImage'),ottSrc:widgetStore.image('ottImage')};
+  if(action==='get')return {...widgetStore.read(),src:widgetStore.image(),idleSrc:widgetStore.image('idleImage'),gameSrc:widgetStore.image('gameImage'),ottSrc:widgetStore.image('ottImage')};
+  if(action==='shareOpen'){await openShareWindow();return {ok:true};}
+  if(action==='shareClose'){shareWindow?.close();return {ok:true};}
+  if(action==='shareBackground'){const data=widgetStore.shareBackground(value);if(shareWindow&&!shareWindow.isDestroyed())shareWindow.setBackgroundColor(value);broadcastWidget(data);return data;}
   if(action==='appearance'){const data=widgetStore.appearance(value);broadcastWidget(data);return data;}
   if(action==='width'){const data=widgetStore.resize(value);broadcastWidget({width:data.width});return data;}
   if(action==='idleDelay'){const data=widgetStore.idleDelay(value);broadcastWidget(data);return data;}
@@ -119,22 +133,21 @@ async function startDesktop(){
   if(!validSender(event))throw Error('Invalid window request');
   if(typeof next!=='boolean')throw Error('Invalid mode');return setCompact(next);
  });
- ipcMain.handle('daylog:opacity',(event,value)=>{
-  if(!validSender(event))throw Error('Invalid window request');
-  if(!Number.isFinite(value)||value<.35||value>1)throw Error('Invalid opacity');
-  compactOpacity=value;if(widgetWindow&&!widgetWindow.isDestroyed())widgetWindow.setOpacity(value);
-  fs.writeFileSync(path.join(DATA,'compact-settings.json'),JSON.stringify({opacity:value}));broadcastWidget({opacity:value});return value;
- });
  ipcMain.handle('daylog:compact-size',(event,height)=>{
   if(!validSender(event))throw Error('Invalid window request');
   if(!Number.isFinite(height)||height<0||height>100000)throw Error('Invalid height');
+  if(shareWindow&&event.sender===shareWindow.webContents){const area=screen.getDisplayMatching(shareWindow.getBounds()).workArea;shareWindow.setContentSize(Math.min(widgetStore.read().width||320,area.width),Math.min(area.height-60,Math.max(140,Math.ceil(height))));return;}
   resizeCompact(height);
  });
  tray=new Tray(nativeImage.createFromPath(icon));tray.setToolTip('Tempo · 활동 기록');
  tray.on('double-click',()=>showWindow().catch(reportError));
  tray.on('right-click',async()=>{try{tray.popUpContextMenu(await trayMenu());}catch(error){reportError(error);}});
- await ensureServer();if(showRequested)await showWindow();writeStatus();
+ await ensureServer();await showInitialWindow();writeStatus();
  watchdog=setInterval(async()=>{if(stopping)return;try{await ensureServer();const state=await getState();if(state)tray.setToolTip(`Tempo · ${state.sessions.filter(s=>s.end===null).length}개 활동 기록 중`);writeStatus();}catch(error){log(error.message);}},5000);
+}
+async function showInitialWindow(){
+ log('Startup mode: '+(showRequested?'dashboard':'widget'));
+ if(showRequested)await showWindow();else{await showWindow(false);setCompact(true);}
 }
 async function quitDaylog(){
  if(stopping)return;stopping=true;

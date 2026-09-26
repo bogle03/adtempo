@@ -206,7 +206,7 @@ html.widget-document,html.widget-document body.compact-mode{background:transpare
 .widget-preview-tabs{display:flex;gap:6px;margin-bottom:10px}.widget-preview-tabs button{padding:8px 12px;background:#eeeaf3;color:#908399;border-radius:7px;font-size:11px}.widget-preview-tabs button[aria-pressed=true]{background:#ddd1ec;color:#6b5283}.widget-document #compact-view{position:relative}.widget-document .compact-header{position:absolute;top:8px;left:12px;right:12px;z-index:5;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .15s}.widget-document .widget-toolbar-open .compact-header{opacity:1;visibility:visible;pointer-events:auto}.widget-document .compact-row,.widget-document #widget-art{-webkit-app-region:no-drag;touch-action:none;cursor:grab}.widget-document .compact-row:active,.widget-document #widget-art:active{cursor:grabbing}.widget-document #expand-window{display:grid;place-items:center;border-radius:5px}.widget-document #expand-window:hover{background:#ffffff25}.widget-preview-header svg{display:block}
 
 /* Keep the toolbar above the timers without shifting the widget on reveal. */
-.widget-document #compact-view{padding-top:41px}
+.widget-document #compact-view{padding-top:0}
 .side-note{border:0;outline:0;box-shadow:none}
 
 .widget-document #expand-window,.widget-document #expand-window:hover{background:var(--widget-color,#45434d);color:var(--widget-text,#fff);border:0;box-shadow:none;filter:none}
@@ -267,3 +267,28 @@ body.calendar-page-open{overflow:hidden}body.calendar-page-open main{height:100v
 .topbar{border-bottom-color:transparent;box-shadow:none}#overview-page :is(.activity-card,.summary-card,.panel){border-color:transparent;box-shadow:none}
 
 .sidebar .workspace{border-top-color:transparent!important;border-bottom-color:transparent!important}
+
+.calendar-empty-filter{display:flex;align-items:center;gap:12px;padding:12px 16px;margin-bottom:10px;border-radius:10px;background:#f1edf9;flex-shrink:0}.calendar-empty-filter>div{flex:1}.calendar-empty-filter strong{font-size:14px}.calendar-empty-filter p{display:block!important;margin:4px 0 0;font-size:12px;color:#6b607a}.activity-actions{display:flex;gap:6px;flex-wrap:wrap}.activity-action{padding:8px 10px;border-radius:7px;background:#eee8f8;color:#654c87;font-size:12px;white-space:nowrap}.status-recording{color:#536f59}.status-recording i{background:#67a378}.status-waiting{color:#6d6682}.status-waiting i{background:#a499c5}.status-setup{color:#97621d}.status-setup i{background:#c58c39}.status-paused{color:#7c7885}.status-paused i{background:#9b97a3}#connection-guide:focus{outline:2px solid #aa8bc5;outline-offset:4px}
+
+.activity-save-bar{position:sticky;bottom:-29px;background:white;padding:12px 0;margin-top:12px;border-top:1px solid #e8e2ef;z-index:2}#activity-save-status{color:#a24d39;font-size:12px;line-height:1.6;margin:0 0 8px}#activity-save-status:empty{display:none}#activity-name-preview{font-size:12px;color:#69537e;margin-top:-8px}
+
+.date-control button.today-btn{width:auto;min-width:max-content;flex:0 0 auto;padding:0 12px;white-space:nowrap}
+
+html.widget-document.share-document,html.widget-document.share-document body,html.widget-document.share-document #compact-view{background:var(--share-background,#000000)!important;color:var(--share-text,#ffffff);border-radius:0}html.share-document .compact-header{display:none!important}html.share-document .compact-row,html.share-document #widget-art{cursor:default}html.share-document .compact-empty,html.share-document #widget-placeholder{color:var(--share-text,#ffffff)}.widget-share-settings{border:1px solid #ddd4e8;border-radius:8px;padding:12px;margin-top:18px}.widget-share-settings legend{font-size:12px}
+/* One floating return control, anchored to visible artwork instead of its padding. */
+.widget-document .compact-header{right:auto;width:32px;height:32px;min-height:32px;padding:0;gap:0;background:transparent;box-shadow:none;border:0;border-radius:50%;visibility:visible;-webkit-app-region:no-drag}
+.widget-document .compact-header .widget-grip{display:none}
+.widget-document .compact-header #expand-window{width:32px;height:32px;padding:0;border:1px solid #ffffff65;border-radius:50%;background:#3e394de8;color:#fff;box-shadow:0 2px 6px #0003}
+.widget-document .compact-header #expand-window:hover{background:#665580}
+.widget-document .compact-header:focus-within{opacity:1;pointer-events:auto}
+.widget-document .compact-header #expand-window:focus-visible{outline:2px solid #bda0f5;outline-offset:2px}
+.widget-preview-header{display:none}
+.widget-document #compact-view{container-type:inline-size}
+@container (max-width:215px){
+ .widget-document .compact-row,#widget-preview-rows .compact-row{gap:5px;padding:6px;border-radius:7px}
+ .widget-document .compact-row strong,#widget-preview-rows .compact-row strong{font-size:11px}
+ .widget-document .compact-row time,#widget-preview-rows .compact-row time{font-size:15px;flex-shrink:0}
+ #widget-art,.widget-preview-art{height:clamp(80px,75cqw,160px)}
+ #widget-placeholder{padding:12px 6px;font-size:11px}
+ #widget-placeholder small{font-size:9px}
+}
