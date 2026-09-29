@@ -102,6 +102,7 @@ function writeStatus(){fs.writeFileSync(path.join(DATA,'desktop-status.json'),JS
 async function trayMenu(){
  let enabled=false,available=true;try{enabled=(await startup.status()).autoStart;}catch{available=false;}
  return Menu.buildFromTemplate([
+  {label:'Tempo '+app.getVersion(),enabled:false},{type:'separator'},
   {label:'Tempo 열기',click:()=>showWindow().catch(reportError)},{label:'공유용 위젯 열기',click:()=>openShareWindow().catch(reportError)},{type:'separator'},
   {label:'Windows 로그인 시 자동 실행',type:'checkbox',checked:enabled,enabled:available,click:async item=>{try{await startup.set(item.checked);}catch(error){reportError(error);}}},
   {type:'separator'},{label:'Tempo 종료 (기록 중지)',click:()=>quitDaylog()}

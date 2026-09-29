@@ -92,11 +92,11 @@ function renderCompact(){
  const container=$('#compact-activities');
  if(!state){container.innerHTML='<p class="compact-empty">기록을 불러오는 중…</p>';fitCompactWindow();return;}
  if(compactMode)updateCompactImage();
- const active=state.sessions.filter(s=>s.end===null);
- const pinned=state.activities.filter(a=>!a.archived&&a.category==='work');
- const visible=[...pinned,...active.map(s=>activity(s.activityId)).filter(a=>a&&!pinned.some(p=>p.id===a.id))];
- container.innerHTML=visible.length?visible.map(a=>{const current=active.find(s=>s.activityId===a.id),name=TempoActivityUI.compactName(a,current);const ms=union(clipped(dateKey(new Date()),r=>r.activityId===a.id));return '<div class="compact-row" style="'+theme(a.category)+(widgetConfig.cardColors?';--widget-color:'+meta[a.category].color+';--widget-text:#242635':'')+'"><span class="compact-dot"'+(current?'':' style="background:#c8c3ce"')+' title="'+(current?'기록 중':'대기 중')+'"></span><strong title="'+esc(name)+'">'+esc(name)+'</strong><time>'+duration(ms,true)+'</time></div>';}).join(''):'<p class="compact-empty">지금 기록 중인 활동이 없어요.</p>';
-
+ const rows=TempoActivityUI.compactRows(state.activities,state.sessions);
+ container.innerHTML=rows.map(({activity:a,current,name,idleWork})=>{
+  const ms=union(clipped(dateKey(new Date()),r=>idleWork?(r.category||activity(r.activityId)?.category)==='work':r.activityId===a.id));
+  return '<div class="compact-row" style="'+theme(a.category)+(widgetConfig.cardColors?';--widget-color:'+meta[a.category].color+';--widget-text:#242635':'')+'"><span class="compact-dot"'+(current?'':' style="background:#c8c3ce"')+' title="'+(current?'기록 중':'대기 중')+'"></span><strong title="'+esc(name)+'">'+esc(name)+'</strong><time>'+duration(ms,true)+'</time></div>';
+ }).join('');
  fitCompactWindow();
 }
 function timerControlIcon(stop){return '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true" focusable="false">'+(stop?'<rect x="6" y="5" width="4" height="14" rx="1.3"/><rect x="14" y="5" width="4" height="14" rx="1.3"/>':'<path d="M8 5.8c0-.8.9-1.3 1.6-.9l10 6.2a1.1 1.1 0 0 1 0 1.8l-10 6.2c-.7.4-1.6-.1-1.6-.9Z"/>')+'</svg>';}

@@ -1,6 +1,6 @@
 {
   "name": "daylog",
-  "version": "0.3.8",
+  "version": "0.3.11",
   "private": true,
   "scripts": {
     "start": "electron .",

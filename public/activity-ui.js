@@ -26,15 +26,25 @@
   if(!rules.length)throw Error('측정 대상을 하나 이상 추가해주세요.');
   return {...base,mode:'group',target:'',rules:rules.map(r=>({...r}))};
  }
- function compactName(activity,current){
+ function mouseOnly(activity){return activity.mode==='mouse'||(activity.mode==='group'&&activity.rules?.length>0&&activity.rules.every(r=>r.mode==='mouse'));}
+ function compactName(activity,current,previous){
   const targets=activity.mode==='group'?(activity.rules||[]):['process','mouse'].includes(activity.mode)?(activity.targets||[]):[];
-  const active=current?.targets||[];
+  const active=(current||(mouseOnly(activity)?previous:null))?.targets||[];
+  if(mouseOnly(activity)&&!active.length&&targets.length>1)return activity.name;
   const names=active.length?active.map(t=>targets.find(r=>(r.id&&r.id===t.id)||((r.target||r.process)===(t.target||t.process)))?.name||t.name):targets.map(t=>t.name);
   if(names.some(Boolean))return [...new Set(names.filter(Boolean))].join(' + ');
   // Manual activities have no separate target name.
   if(['ai','youtube'].includes(activity.mode)&&activity.target)return activity.target;
   return activity.name;
  }
- const api={calendarSelection,activityStatus,activityPayload,compactName};
+ function compactRows(activities,sessions){
+  const rows=activities.filter(a=>!a.archived).flatMap(activity=>{
+   const current=sessions.find(s=>s.activityId===activity.id&&s.end===null);
+   return current?[{activity,current,name:compactName(activity,current),idleWork:false}]:[];
+  });
+  if(!rows.some(r=>r.activity.category==='work'))rows.unshift({activity:{category:'work'},current:null,name:'작업',idleWork:true});
+  return rows;
+ }
+ const api={calendarSelection,activityStatus,activityPayload,compactName,compactRows};
  if(typeof module==='object'&&module.exports)module.exports=api;else root.TempoActivityUI=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

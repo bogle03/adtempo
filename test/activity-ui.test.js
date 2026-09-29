@@ -1,5 +1,23 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {calendarSelection,activityStatus}=require('../public/activity-ui');
+
+test('idle widget keeps exactly one generic work timer without listing inactive targets',()=>{
+ const {compactRows}=require('../public/activity-ui');
+ const work={id:'work',name:'작업 카드',category:'work',mode:'group',rules:[{id:'clip',name:'작업',mode:'mouse',target:'CLIPStudioPaint'},{id:'sketch',name:'배경 뽑는 중',mode:'mouse',target:'SketchUp'}]};
+ const second={id:'second',name:'다른 작업',category:'work',mode:'manual'};
+ const game={id:'game',name:'게임',category:'game',mode:'manual'};
+ const cards=[work,second,game];
+ const names=sessions=>compactRows(cards,sessions).map(r=>r.name);
+ assert.deepEqual(names([]),['작업']);
+ const clip={activityId:'work',end:null,targets:[{id:'clip',name:'작업',process:'CLIPStudioPaint'}]};
+ assert.deepEqual(names([clip]),['작업']);
+ assert.equal(compactRows(cards,[clip])[0].idleWork,false);
+ assert.deepEqual(names([{...clip,targets:[{id:'sketch',name:'배경 뽑는 중',process:'SketchUp'}]}]),['배경 뽑는 중']);
+ assert.deepEqual(names([{...clip,end:100}, {activityId:'game',end:null}]),['작업','게임']);
+ assert.equal(compactRows(cards,[{...clip,end:100}])[0].idleWork,true);
+ assert.deepEqual(names([clip,{activityId:'second',end:null}]),['작업','다른 작업']);
+ assert.deepEqual(compactRows([],[]).map(r=>r.name),['작업']);
+});
 test('new calendars show all categories and explicit empty selections stay empty',()=>{
  assert.deepEqual(calendarSelection(null,null),['work','game','video','life']);
  assert.deepEqual(calendarSelection([],null),[]);
@@ -53,4 +71,29 @@ test('small window uses target names while active and idle, independent of card 
  assert.equal(compactName({name:'게임',mode:'process',targets:[{name:'Stardew',process:'StardewValley'}]},null),'Stardew');
  assert.equal(compactName({name:'독서',mode:'manual'},null),'독서');
  assert.equal(compactName({name:'작업',mode:'ai',target:'codex'},null),'codex');
+});
+
+test('mouse group shows only the detected target, retaining it through idle and switching windows',()=>{
+ const {compactName}=require('../public/activity-ui');
+ const {activeRules}=require('../activity-rules');
+ const {reconcile}=require('../tracker');
+ const card={id:'drawing',name:'작업',category:'work',mode:'group',enabled:true,rules:[
+  {id:'clip',name:'클튜',mode:'mouse',target:'CLIPStudioPaint'},
+  {id:'sketch',name:'스케치업',mode:'mouse',target:'SketchUp'}
+ ]};
+ const state={activities:[card],sessions:[]};
+ function step(process,idle,now){
+  const matches=activeRules(card,{input:{foregroundProcess:process,mouseIdleMs:idle,sampledAt:now},now,leases:new Map()});
+  reconcile(state,new Set(matches.length?[card.id]:[]),now,new Map([[card.id,matches]]));
+  const current=state.sessions.find(s=>s.end===null),previous=state.sessions.at(-1);
+  return {name:compactName(card,current,previous),current};
+ }
+ assert.equal(compactName(card,null),'작업');
+ assert.equal(step('CLIPStudioPaint',0,10000).name,'클튜');
+ const idle=step('CLIPStudioPaint',5000,15000);
+ assert.equal(idle.name,'클튜');assert.equal(idle.current,undefined);
+ const sketch=step('SketchUp',0,16000);
+ assert.equal(sketch.name,'스케치업');assert.deepEqual(sketch.current.targets.map(t=>t.id),['sketch']);
+ assert.equal(step('Chrome',0,17000).name,'스케치업');
+ assert.equal(state.sessions[0].end,15000);assert.equal(state.sessions[1].end,17000);
 });
