@@ -38,8 +38,8 @@ window.installWidgetHover = function(view, shareMode) {
  }
  function position(bounds) {
   const rect = view.getBoundingClientRect();
-  control.style.left = Math.max(4, Math.min(rect.width-36, bounds.right-rect.left+3))+'px';
-  control.style.top = Math.max(4, Math.min(rect.height-36, bounds.bottom-rect.top-16))+'px';
+  control.style.left = Math.max(4, Math.min(rect.width-control.offsetWidth-4, bounds.right-rect.left+3))+'px';
+  control.style.top = Math.max(4, Math.min(rect.height-control.offsetHeight-4, bounds.bottom-rect.top-control.offsetHeight+16))+'px';
  }
  function hit(event, bounds) {
   if (image.hidden || !image.naturalWidth) return event.target.closest('#widget-art');
@@ -48,7 +48,7 @@ window.installWidgetHover = function(view, shareMode) {
   const y=Math.floor((event.clientY-bounds.box.top)/bounds.box.height*canvas.height);
   return x>=0 && y>=0 && x<canvas.width && y<canvas.height && sample.pixels[(y*canvas.width+x)*4+3]>8;
  }
- function refresh() { sample=null; position(measure()); hide(); }
+ function refresh() { sample=null; position(measure()); }
  image.addEventListener('load',refresh);
  new MutationObserver(refresh).observe(image,{attributes:true,attributeFilter:['src','hidden']});
  new ResizeObserver(() => position(measure())).observe(view);
@@ -72,9 +72,11 @@ window.installWidgetHover = function(view, shareMode) {
  view.addEventListener('lostpointercapture',()=>{drag=null;});
  view.addEventListener('pointercancel',()=>{drag=null;hide();});
  view.addEventListener('pointerleave',scheduleHide);
- button.addEventListener('pointerenter',show);
- button.addEventListener('focus',()=>{position(measure());show();});
- button.addEventListener('blur',hide);
+ for(const action of control.querySelectorAll('button')){
+ action.addEventListener('pointerenter',show);
+ action.addEventListener('focus',()=>{position(measure());show();});
+ action.addEventListener('blur',hide);
+ }
  window.addEventListener('blur',()=>{drag=null;hide();});
  refresh();
 };

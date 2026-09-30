@@ -40,6 +40,7 @@ async function ensureServer(){
 const widgetStore=require('./widget-store').createWidgetStore(DATA);
 let widgetWindow=null,shareWindow=null;
 const restoreDashboard=require('./restore-dashboard').createDashboardRestorer({getWindow:()=>window,createWindow:()=>showWindow(false),getWidget:()=>widgetWindow,screen,url:BASE,onRestored:()=>{compact=false;},onFailed:()=>{compact=true;},log});
+const typingMonitor=require('./typing-monitor').createTypingMonitor({onKeys:count=>{for(const target of [window,widgetWindow,shareWindow])if(target&&!target.isDestroyed())target.webContents.send('daylog:typing',count);},onError:error=>{log(error.message);broadcastWidget({typingError:error.message});}});
 function broadcastWidget(data){for(const target of [window,widgetWindow,shareWindow])if(target&&!target.isDestroyed())target.webContents.send('daylog:widget-update',data);}
 function validSender(event){return [window,widgetWindow,shareWindow].some(w=>w&&!w.isDestroyed()&&event.sender===w.webContents&&event.senderFrame===w.webContents.mainFrame)&&new URL(event.senderFrame.url).origin===BASE;}
 function setCompact(next){
@@ -47,7 +48,7 @@ function setCompact(next){
   compact=true;
   if(!widgetWindow||widgetWindow.isDestroyed()){
    const b=window.getBounds(),config=widgetStore.read(),width=config.width||320;
-   widgetWindow=new BrowserWindow({x:b.x,y:b.y,width,height:440,frame:false,transparent:true,backgroundColor:'#00000000',hasShadow:false,resizable:false,show:false,skipTaskbar:false,title:'Tempo 위젯',icon,alwaysOnTop:true,webPreferences:{preload:path.join(__dirname,'preload.js'),nodeIntegration:false,contextIsolation:true,sandbox:true}});
+   widgetWindow=new BrowserWindow({x:b.x,y:b.y,width,height:440,frame:false,transparent:true,backgroundColor:'#00000000',hasShadow:false,resizable:false,show:false,skipTaskbar:false,title:'Tempo 위젯',icon,alwaysOnTop:true,webPreferences:{preload:path.join(__dirname,'preload.js'),nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false}});
    widgetWindow.removeMenu();widgetWindow.webContents.setWindowOpenHandler(()=>({action:'deny'}));
    widgetWindow.webContents.on('will-navigate',(event,url)=>{if(new URL(url).origin!==BASE)event.preventDefault();});
    widgetWindow.on('close',event=>{if(!quitting){event.preventDefault();Promise.resolve().then(()=>setCompact(false)).catch(reportError);}});
@@ -116,17 +117,22 @@ async function startDesktop(){
  });
  ipcMain.handle('daylog:widget',async(event,action,value)=>{
   if(!validSender(event))throw Error('Invalid window request');
-  if(action==='get')return {...widgetStore.read(),src:widgetStore.image(),idleSrc:widgetStore.image('idleImage'),gameSrc:widgetStore.image('gameImage'),ottSrc:widgetStore.image('ottImage')};
+  if(action==='get')return {...widgetStore.read(),src:widgetStore.image(),idleSrc:widgetStore.image('idleImage'),gameSrc:widgetStore.image('gameImage'),ottSrc:widgetStore.image('ottImage'),typingIdleSrc:widgetStore.image('typingIdleImage'),typingOneSrc:widgetStore.image('typingOneImage'),typingTwoSrc:widgetStore.image('typingTwoImage')};
+  if(action==='typing'){
+   const previous=widgetStore.read();const data=widgetStore.typing(value);
+   try{if(data.typingMode)await typingMonitor.start();else typingMonitor.stop();}catch(error){widgetStore.typing({typingMode:!!previous.typingMode});throw error;}
+   broadcastWidget({...data,typingError:null});return {...data,typingError:null};
+  }
   if(action==='shareOpen'){await openShareWindow();return {ok:true};}
   if(action==='shareClose'){shareWindow?.close();return {ok:true};}
   if(action==='shareBackground'){const data=widgetStore.shareBackground(value);if(shareWindow&&!shareWindow.isDestroyed())shareWindow.setBackgroundColor(value);broadcastWidget(data);return data;}
   if(action==='appearance'){const data=widgetStore.appearance(value);broadcastWidget(data);return data;}
   if(action==='width'){const data=widgetStore.resize(value);broadcastWidget({width:data.width});return data;}
   if(action==='idleDelay'){const data=widgetStore.idleDelay(value);broadcastWidget(data);return data;}
-  if(action==='pick'||action==='pickIdle'||action==='pickGame'||action==='pickOtt'){
+  if(action==='pick'||action==='pickIdle'||action==='pickGame'||action==='pickOtt'||action==='pickTypingIdle'||action==='pickTypingOne'||action==='pickTypingTwo'){
    const result=await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender),{title:'위젯 이미지 선택',filters:[{name:'PNG / GIF',extensions:['png','gif']}],properties:['openFile']});
    if(result.canceled)return null;
-   const slot={pick:'image',pickIdle:'idleImage',pickGame:'gameImage',pickOtt:'ottImage'}[action],key={pick:'src',pickIdle:'idleSrc',pickGame:'gameSrc',pickOtt:'ottSrc'}[action];const src=widgetStore.importImage(result.filePaths[0],slot);const data={[key]:src};broadcastWidget(data);return data;
+   const slot={pick:'image',pickIdle:'idleImage',pickGame:'gameImage',pickOtt:'ottImage',pickTypingIdle:'typingIdleImage',pickTypingOne:'typingOneImage',pickTypingTwo:'typingTwoImage'}[action],key={pick:'src',pickIdle:'idleSrc',pickGame:'gameSrc',pickOtt:'ottSrc',pickTypingIdle:'typingIdleSrc',pickTypingOne:'typingOneSrc',pickTypingTwo:'typingTwoSrc'}[action];const src=widgetStore.importImage(result.filePaths[0],slot);const data={[key]:src};broadcastWidget(data);return data;
   }
   throw Error('Invalid widget action');
  });
@@ -144,6 +150,7 @@ async function startDesktop(){
  tray.on('double-click',()=>showWindow().catch(reportError));
  tray.on('right-click',async()=>{try{tray.popUpContextMenu(await trayMenu());}catch(error){reportError(error);}});
  await ensureServer();await showInitialWindow();writeStatus();
+ if(widgetStore.read().typingMode)typingMonitor.start().catch(error=>{log(error.message);broadcastWidget({typingError:error.message});});
  watchdog=setInterval(async()=>{if(stopping)return;try{await ensureServer();const state=await getState();if(state)tray.setToolTip(`Tempo · ${state.sessions.filter(s=>s.end===null).length}개 활동 기록 중`);writeStatus();}catch(error){log(error.message);}},5000);
 }
 async function showInitialWindow(){
@@ -153,7 +160,7 @@ async function showInitialWindow(){
 async function quitDaylog(){
  if(stopping)return;stopping=true;
  try{const state=await getState();if(state){const response=await fetch(BASE+'/api/shutdown',{method:'POST',headers:{'Content-Type':'application/json','X-Daylog-Token':state.token},body:'{}',signal:AbortSignal.timeout(3000)});if(!response.ok)throw Error('기록 저장에 실패해서 종료하지 않았습니다. 디스크 공간과 폴더 권한을 확인해주세요.');}}catch(error){stopping=false;reportError(error);return;}
- clearInterval(watchdog);
+ typingMonitor.stop();clearInterval(watchdog);
  if(tray){tray.destroy();tray=null;}quitting=true;writeStatus();app.quit();
 }
 function reportError(error){log(error.stack||error.message);dialog.showErrorBox('Tempo',error.message||String(error));}

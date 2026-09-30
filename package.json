@@ -1,6 +1,6 @@
 {
   "name": "daylog",
-  "version": "0.3.11",
+  "version": "0.4.11",
   "private": true,
   "scripts": {
     "start": "electron .",
@@ -39,6 +39,7 @@
       "assets/tempo-taskbar.ico",
       "assets/daylog-mark.svg",
       "windows/input-state.ps1",
+      "windows/typing-input.ps1",
       "windows/startup.ps1",
       "windows/startup-control.ps1",
       "package.json",

@@ -5,8 +5,13 @@ let compactMode=new URLSearchParams(location.search).has('widget'),compactResize
 if(shareMode)document.documentElement.classList.add('share-document');
 if(compactMode){document.documentElement.classList.add('widget-document');document.body.classList.add('compact-mode');$('#compact-view').hidden=false;}
 let widgetConfig={width:320,cardColors:false,src:null,idleSrc:null,gameSrc:null,ottSrc:null,idleSeconds:30,color:'#45434d'};
+const typingAnimation=window.createTypingAnimation({render:()=>{if(compactMode)updateCompactImage();window.renderTypingPreview?.();}});
+window.daylogDesktop?.onTyping?.(count=>typingAnimation.key(count));
+const typingToggle=$('#typing-toggle');
+typingToggle.onclick=async()=>{if(typingToggle.disabled)return;typingToggle.disabled=true;try{applyWidgetConfig(await window.daylogDesktop.widget('typing',{typingMode:!widgetConfig.typingMode}));}catch(error){const label=$('#widget-error');label.textContent=error.message;label.hidden=false;setTimeout(()=>{label.hidden=true;fitCompactWindow();},6000);fitCompactWindow();}finally{typingToggle.disabled=false;}};
 let widgetIdleSince=null,widgetPreviewMode='default';
 function widgetImageSource(){
+ if(widgetConfig.typingMode)return typingAnimation.source();
  if(!state)return widgetConfig.src;
  const gaming=state.sessions.some(s=>s.end===null&&(s.category||activity(s.activityId)?.category)==='game');
  const working=state.sessions.some(s=>s.end===null&&(s.category||activity(s.activityId)?.category)==='work');
@@ -20,7 +25,9 @@ function widgetImageSource(){
 }
 function updateCompactImage(){const image=$('#widget-image'),src=widgetImageSource();image.onload=fitCompactWindow;if(src&&image.getAttribute('src')!==src)image.src=src;image.hidden=!src;$('#widget-placeholder').hidden=!!src;}
 function applyWidgetConfig(data){
- widgetConfig={...widgetConfig,...data};
+ widgetConfig={...widgetConfig,...data};typingAnimation.configure(widgetConfig);
+ typingToggle.setAttribute('aria-pressed',String(!!widgetConfig.typingMode));typingToggle.title=widgetConfig.typingMode?'활동 이미지 모드로 전환':'타자 반응 모드로 전환';typingToggle.setAttribute('aria-label',typingToggle.title);
+ window.updateTypingSettings?.();
  if(shareMode){const bg=widgetConfig.shareBackground==='#ffffff'?'#ffffff':'#000000';document.documentElement.style.setProperty('--share-background',bg);document.documentElement.style.setProperty('--share-text',bg==='#ffffff'?'#242635':'#ffffff');}
  document.documentElement.style.setProperty('--widget-color',widgetConfig.color);
  const rgb=widgetConfig.color.slice(1).match(/../g).map(x=>parseInt(x,16));document.documentElement.style.setProperty('--widget-text',rgb[0]*.299+rgb[1]*.587+rgb[2]*.114>160?'#302b39':'#ffffff');
@@ -47,6 +54,7 @@ function ensureWidgetSettings(){
  const width=$('#widget-setting-width');
  width.oninput=()=>{widgetConfig.width=Number(width.value);updateWidgetPreview();};
  width.onchange=async()=>{try{await window.daylogDesktop.widget('width',widgetConfig.width);status('크기가 저장됐어요.');}catch(error){status(error.message);}};
+ window.installTypingSettings();
  updateWidgetPreview();
 }
 function updateWidgetPreview(){
